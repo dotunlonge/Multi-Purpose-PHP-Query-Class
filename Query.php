@@ -1,24 +1,31 @@
 <?php
 
-/**
- * Created by Oludotun Longe.
- * Date: 03/06/2017
- * Time: 3:38 PM
+/*
+ *@author
+ * Oludotun Williams Longe
+ * Fullstack Developer
+ * oludotunlonge@gmail.com
+ * 10th August, 2017
  */
+
 class DbQuery
 {
     private $conn;
 
-    public function __construct()
-    {
+    public function __construct(){
+
         try {
-            $this->conn = new PDO("mysql:host=localhost;dbname=databasenamegoeshere;charset=utf8mb4", 'username', 'password');
+            $this->conn = new PDO("mysql:host=localhost;dbname=put-your-db-name-here;charset=utf8mb4", 'root', 'root');
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             $this->conn->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
         } catch (PDOException $e) {
             return $e->getMessage();
         }
+    }
+
+    public function lastId(){
+        return $this->conn->lastInsertId();
     }
 
     /**
@@ -30,7 +37,6 @@ class DbQuery
      * Syntax: insert[into what table, into which columns, exactly what values?] e.g
      * insert into["users",["username","password"],["$_POST["username"], $_POST["password"]]]
      */
-
 
     public function insert($whatTable, $whichColumns, $whatValues){
         $returnMe = null;
@@ -64,7 +70,7 @@ class DbQuery
                 $returnMe = 'duplicate';
             }
         }
-    return $returnMe;
+     return $returnMe;
 
     }
 
@@ -88,7 +94,77 @@ class DbQuery
      *
      *
      */
+
     public function select($selectWhat, $FromWhichTable,$joinArray = null, $WhereXEqualsY){
+
+        $returnMe = null;
+        $queryString = null;
+
+        switch (is_array($selectWhat)){
+            case true:
+                $selectWhat = implode(",", $selectWhat);
+                break;
+        }
+        $argumentsString = [];
+        $executeArray = [];
+
+        foreach ($WhereXEqualsY as $key => $value){
+            array_push($argumentsString, $key . " = ? ");
+            array_push($executeArray, $value);
+        }
+
+        $argumentsString = implode(" AND ", $argumentsString);
+
+        switch ($joinArray == null) {
+            case true:
+                $queryString = "SELECT ". $selectWhat ." FROM ". $FromWhichTable ." WHERE ". $argumentsString;
+                break;
+
+            case false:
+                $joinType = trim(strtolower(array_shift($joinArray)));
+                $queryString = "SELECT ". $selectWhat ." FROM ". $FromWhichTable ;
+
+                switch ($joinType){
+                    case "inner":
+                        $joinQuery = implode(" INNER JOIN ",$joinArray);
+                        $joinQuery =  " INNER JOIN ".$joinQuery;
+                        $queryString = $queryString.$joinQuery." WHERE ". $argumentsString;
+                        break;
+
+                    case "left":
+                        $joinQuery = implode(" LEFT OUTER JOIN ",$joinArray);
+                        $joinQuery =  " LEFT OUTER JOIN ".$joinQuery;
+                        $queryString = $queryString.$joinQuery." WHERE ". $argumentsString;
+                        break;
+
+                    case "right":
+                        $joinQuery = implode(" RIGHT OUTER JOIN ",$joinArray);
+                        $joinQuery =  " RIGHT OUTER JOIN ".$joinQuery;
+                        $queryString = $queryString.$joinQuery." WHERE ". $argumentsString;
+                        break;
+                }
+                break;
+        }
+
+        try {
+            $stmt = $this->conn->prepare($queryString);
+            $stmt->execute($executeArray);
+            $count = $stmt->rowCount();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($count > 0 && $result) {
+                $returnMe = [true, $result];
+            }else{
+                $returnMe = false;
+
+            }
+        }catch (PDOException $e){
+            $returnMe = $e->getMessage();
+        }
+        return $returnMe;
+    }
+
+    public function conditionBasedSelectAll($selectWhat, $FromWhichTable,$joinArray = null, $WhereXEqualsY){
 
         $returnMe = null;
         $queryString = null;
@@ -144,7 +220,68 @@ class DbQuery
             $stmt = $this->conn->prepare($queryString);
             $stmt->execute($executeArray);
             $count = $stmt->rowCount();
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if ($count > 0 && $result) {
+                $returnMe = [true, $result];
+            }else{
+                $returnMe = false;
+
+            }
+        }catch (PDOException $e){
+            $returnMe = $e->getMessage();
+        }
+        return $returnMe;
+    }
+
+    public function selectAll($selectWhat, $FromWhichTable,$joinArray = null){
+        $returnMe = null;
+        $queryString = null;
+
+        switch (is_array($selectWhat)){
+            case true:
+                $selectWhat = implode(",", $selectWhat);
+                break;
+        }
+        $executeArray = [];
+
+        switch ($joinArray == null) {
+            case true:
+                $queryString = "SELECT ". $selectWhat ." FROM ". $FromWhichTable ;
+                break;
+
+            case false:
+                $joinType = trim(strtolower(array_shift($joinArray)));
+                $queryString = "SELECT ". $selectWhat ." FROM ". $FromWhichTable ;
+
+                switch ($joinType){
+                    case "inner":
+                        $joinQuery = implode(" INNER JOIN ",$joinArray);
+                        $joinQuery =  " INNER JOIN ".$joinQuery;
+                        $queryString = $queryString.$joinQuery;
+                        echo $queryString;
+                        break;
+
+                    case "left":
+                        $joinQuery = implode(" LEFT OUTER JOIN ",$joinArray);
+                        $joinQuery =  " LEFT OUTER JOIN ".$joinQuery;
+                        $queryString = $queryString.$joinQuery;
+                        break;
+
+                    case "right":
+                        $joinQuery = implode(" RIGHT OUTER JOIN ",$joinArray);
+                        $joinQuery =  " RIGHT OUTER JOIN ".$joinQuery;
+                        $queryString = $queryString.$joinQuery;
+                        break;
+                }
+                break;
+        }
+
+        try {
+            $stmt = $this->conn->prepare($queryString);
+            $stmt->execute($executeArray);
+            $count = $stmt->rowCount();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             if ($count > 0 && $result) {
                 $returnMe = [true, $result];
@@ -202,8 +339,9 @@ class DbQuery
      * @param $WhereXEqualsY -> array
      * @return null|string
      *
-     * Syntax update["user", ['age' => '12', 'name'=> 'tami'], ['code' => '123', 'gender' => 'male']"]
+     * Syntax update("user", ['age' => '12', 'name'=> 'tami'], ['code' => '123', 'gender' => 'male']")
      */
+
     public function update($updateWhatTable,$setWhatToWhat, $WhereXEqualsY){
 
         $returnMe = null;
